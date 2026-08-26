@@ -58,7 +58,9 @@ jobs:
       - name: Install syntax-highlighting
         run: |
           cd third_party/syntax-highlighting
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_HTML_DOCS=OFF -DBUILD_MAN_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF -DBUILD_TESTING=OFF -DQRC_SYNTAX=OFF
+          # Bundle KDE syntax definitions in the KSyntaxHighlighting library.
+          # This is required for the standalone macOS app to have C++ syntax colors.
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_HTML_DOCS=OFF -DBUILD_MAN_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF -DBUILD_TESTING=OFF -DQRC_SYNTAX=ON
           sudo cmake --build build --config Release --parallel $(sysctl -n hw.ncpu) --target install
 
       - name: Build CP Editor
