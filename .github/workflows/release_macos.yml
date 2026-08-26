@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build (for example V11.07)"
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -20,6 +26,7 @@ jobs:
       - name: Checkout CP Editor
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           submodules: recursive
 
       - name: Set up Qt
@@ -43,31 +50,18 @@ jobs:
       - name: Install extra-cmake-modules
         run: |
           cd third_party/extra-cmake-modules
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_HTML_DOCS=OFF \
-            -DBUILD_MAN_DOCS=OFF \
-            -DBUILD_QTHELP_DOCS=OFF \
-            -DBUILD_TESTING=OFF
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_HTML_DOCS=OFF -DBUILD_MAN_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF -DBUILD_TESTING=OFF
           sudo cmake --build build --config Release --parallel $(sysctl -n hw.ncpu) --target install
 
       - name: Install syntax-highlighting
         run: |
           cd third_party/syntax-highlighting
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_HTML_DOCS=OFF \
-            -DBUILD_MAN_DOCS=OFF \
-            -DBUILD_QTHELP_DOCS=OFF \
-            -DBUILD_TESTING=OFF \
-            -DQRC_SYNTAX=OFF
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_HTML_DOCS=OFF -DBUILD_MAN_DOCS=OFF -DBUILD_QTHELP_DOCS=OFF -DBUILD_TESTING=OFF -DQRC_SYNTAX=OFF
           sudo cmake --build build --config Release --parallel $(sysctl -n hw.ncpu) --target install
 
       - name: Build CP Editor
         run: |
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DPORTABLE_VERSION=Off
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DPORTABLE_VERSION=Off
           cmake --build build --config Release --parallel $(sysctl -n hw.ncpu)
 
       - name: Package DMG
@@ -75,21 +69,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          VERSION="${GITHUB_REF_NAME}"
+          VERSION="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
           ARCH="$(uname -m)"
-
           case "$ARCH" in
-            arm64)
-              ARCH_NAME="arm64"
-              ;;
-            x86_64)
-              ARCH_NAME="x86_64"
-              ;;
-            *)
-              echo "Unsupported macOS architecture: $ARCH"
-              exit 1
-              ;;
+            arm64) ARCH_NAME="arm64" ;;
+            x86_64) ARCH_NAME="x86_64" ;;
+            *) echo "Unsupported macOS architecture: $ARCH"; exit 1 ;;
           esac
 
           test -d build/cpeditor.app
@@ -97,34 +82,26 @@ jobs:
           rm -rf build/dmg/cpeditor.app
           cp -R build/cpeditor.app build/dmg/cpeditor.app
 
-          MACDEPLOYQT="$(find "$HOME" -type f -name macdeployqt -path '*/bin/macdeployqt' -print -quit 2>/dev/null || true)"
+          MACDEPLOYQT="$(find "$RUNNER_TEMP" "$HOME" -type f -name macdeployqt -path '*/bin/macdeployqt' -print -quit 2>/dev/null || true)"
           if [[ -z "$MACDEPLOYQT" ]]; then
             echo "macdeployqt was not found"
             exit 1
           fi
-
           "$MACDEPLOYQT" build/dmg/cpeditor.app
 
           cp dist/mac/cpeditor.icns build/dmg/cpeditor.app/Contents/Resources/cpeditor.icns
           ln -s /Applications build/dmg/Applications
 
           DMG="cpeditor-${VERSION}-macos-${ARCH_NAME}.dmg"
-          hdiutil create \
-            -volname "CP Editor ${VERSION}" \
-            -srcfolder build/dmg \
-            -ov \
-            -format UDZO \
-            "build/dmg/${DMG}"
-
-          test -f "build/dmg/${DMG}"
+          hdiutil create -volname "CP Editor ${VERSION}" -srcfolder build/dmg -ov -format UDZO "build/dmg/${DMG}"
+          test -s "build/dmg/${DMG}"
           echo "asset=build/dmg/${DMG}" >> "$GITHUB_OUTPUT"
-          echo "Created ${DMG}"
 
       - name: Publish DMG to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          name: CP Editor ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          name: CP Editor ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           prerelease: true
           files: ${{ steps.package.outputs.asset }}
         env:
