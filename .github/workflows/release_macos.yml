@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing release tag to build (for example V11.07)"
+        description: "Existing release tag to publish (for example V11.07)"
         required: true
         type: string
 
@@ -26,7 +26,9 @@ jobs:
       - name: Checkout CP Editor
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          # For an existing release, build the latest master code and publish
+          # the resulting DMG to the requested tag. New tags build the tag itself.
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'master' || github.ref_name }}
           submodules: recursive
 
       - name: Set up Qt
@@ -82,7 +84,7 @@ jobs:
           rm -rf build/dmg/cpeditor.app
           cp -R build/cpeditor.app build/dmg/cpeditor.app
 
-          MACDEPLOYQT="$(find "$RUNNER_TEMP" "$HOME" -type f -name macdeployqt -path '*/bin/macdeployqt' -print -quit 2>/dev/null || true)"
+          MACDEPLOYQT="$(find "$RUNNER_TEMP" "$HOME" "$QT_ROOT_DIR" -type f -name macdeployqt -path '*/bin/macdeployqt' -print -quit 2>/dev/null || true)"
           if [[ -z "$MACDEPLOYQT" ]]; then
             echo "macdeployqt was not found"
             exit 1
