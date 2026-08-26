@@ -40,6 +40,7 @@ class CFTool : public QObject
     MessageLogger *log;
     QString CFToolPath;
 
+    static QString buildSubmitUrl(const QString &url);
     void showToastMessage(const QString &message);
 };
 } // namespace Extensions
