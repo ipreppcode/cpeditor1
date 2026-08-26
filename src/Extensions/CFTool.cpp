@@ -95,7 +95,7 @@ bool CFTool::parseCfUrl(const QString &url, QString &contestId, QString &problem
     LOG_INFO(INFO_OF(url));
 
     auto match = QRegularExpression(
-                     R"(^https?://(?:www\.)?codeforces\.com/(?:contest|gym)/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$)")")
+                     "^https?://(?:www\\.)?codeforces\\.com/(?:contest|gym)/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$")
                      .match(url);
     if (match.hasMatch())
     {
@@ -105,7 +105,7 @@ bool CFTool::parseCfUrl(const QString &url, QString &contestId, QString &problem
     }
 
     match = QRegularExpression(
-                R"(^https?://(?:www\.)?codeforces\.com/problemset/problem/([1-9][0-9]*)/([A-Za-z][0-9]?)(?:[/?#].*)?$)")")
+                "^https?://(?:www\\.)?codeforces\\.com/problemset/problem/([1-9][0-9]*)/([A-Za-z][0-9]?)(?:[/?#].*)?$")
                 .match(url);
     if (match.hasMatch())
     {
@@ -115,7 +115,7 @@ bool CFTool::parseCfUrl(const QString &url, QString &contestId, QString &problem
     }
 
     match = QRegularExpression(
-                R"(^https?://(?:www\.)?codeforces\.com/group/([^/]+)/contest/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$)")")
+                "^https?://(?:www\\.)?codeforces\\.com/group/([^/]+)/contest/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$")
                 .match(url);
     if (match.hasMatch())
     {
