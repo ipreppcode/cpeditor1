@@ -16,7 +16,6 @@
 #include <QRegularExpression>
 #include <QTextStream>
 #include <QUrl>
-#include <QUrlQuery>
 
 namespace Extensions
 {
@@ -56,31 +55,75 @@ void CFTool::submit(const QString &filePath, const QString &url)
         return;
     }
 
-    // Copy source first. No browser DOM or keyboard automation is used.
+    // Copy the complete source to the clipboard before opening Codeforces.
     QGuiApplication::clipboard()->setText(sourceCode);
 
-    QUrl problemUrl(url);
-    problemUrl.setQuery(QUrlQuery());
-    problemUrl.setFragment(QString());
+    const QString targetUrl = buildSubmitUrl(url);
+    if (targetUrl.isEmpty())
+    {
+        log->error(tr("CF Tool"), tr("Could not construct the Codeforces submission URL."));
+        return;
+    }
 
     log->info(tr("CF Tool"), tr("Source copied to clipboard (%1 chars)").arg(sourceCode.length()));
-    log->info(tr("CF Tool"), tr("Opening the Codeforces problem page in your default browser..."));
+    log->info(tr("CF Tool"), tr("Opening the Codeforces submission page..."));
 
-    if (!QDesktopServices::openUrl(problemUrl))
+    if (!QDesktopServices::openUrl(QUrl(targetUrl)))
     {
-        log->error(tr("CF Tool"), tr("Failed to open the Codeforces problem page in the browser."));
+        log->error(tr("CF Tool"), tr("Failed to open the Codeforces submission page in the browser."));
         showToastMessage(tr("Failed to open browser"));
         return;
     }
 
+    // Important: do not automate Chrome. Codeforces anti-bot protections can
+    // block scripted interaction. The user only needs to paste and press Submit.
     log->info(tr("CF Tool"),
-              tr("Problem page opened. Paste the code with Ctrl+V/Cmd+V, then click Submit normally."));
+              tr("Submission page opened for Problem %1. Paste with Ctrl+V/Cmd+V and click Submit.")
+                  .arg(problemCode));
     showToastMessage(tr("Code copied — paste and click Submit"));
+}
+
+QString CFTool::buildSubmitUrl(const QString &url)
+{
+    QRegularExpression matchContest(
+        "^https?://(?:www\\.)?codeforces\\.com/(contest|gym)/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$");
+    auto match = matchContest.match(url);
+    if (match.hasMatch())
+    {
+        const QString type = match.captured(1);
+        const QString contestId = match.captured(2);
+        const QString problem = match.captured(3);
+        return QString("https://codeforces.com/%1/%2/submit/%3").arg(type, contestId, problem);
+    }
+
+    QRegularExpression matchProblemset(
+        "^https?://(?:www\\.)?codeforces\\.com/problemset/problem/([1-9][0-9]*)/([A-Za-z][0-9]?)(?:[/?#].*)?$");
+    match = matchProblemset.match(url);
+    if (match.hasMatch())
+    {
+        const QString contestId = match.captured(1);
+        const QString problem = match.captured(2);
+        return QString("https://codeforces.com/contest/%1/submit/%2").arg(contestId, problem);
+    }
+
+    QRegularExpression matchGroup(
+        "^https?://(?:www\\.)?codeforces\\.com/group/([^/]+)/contest/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$");
+    match = matchGroup.match(url);
+    if (match.hasMatch())
+    {
+        const QString group = match.captured(1);
+        const QString contestId = match.captured(2);
+        const QString problem = match.captured(3);
+        return QString("https://codeforces.com/group/%1/contest/%2/submit/%3").arg(group, contestId, problem);
+    }
+
+    return QString();
 }
 
 bool CFTool::check(const QString &path)
 {
     Q_UNUSED(path);
+    // Browser/manual mode does not require cf-tool to be installed.
     return true;
 }
 
@@ -92,11 +135,9 @@ void CFTool::updatePath(const QString &p)
 
 bool CFTool::parseCfUrl(const QString &url, QString &contestId, QString &problemCode)
 {
-    LOG_INFO(INFO_OF(url));
-
-    auto match = QRegularExpression(
-                     "^https?://(?:www\\.)?codeforces\\.com/(?:contest|gym)/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$")
-                     .match(url);
+    QRegularExpression matchContest(
+        "^https?://(?:www\\.)?codeforces\\.com/(?:contest|gym)/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$");
+    auto match = matchContest.match(url);
     if (match.hasMatch())
     {
         contestId = match.captured(1);
@@ -104,9 +145,9 @@ bool CFTool::parseCfUrl(const QString &url, QString &contestId, QString &problem
         return true;
     }
 
-    match = QRegularExpression(
-                "^https?://(?:www\\.)?codeforces\\.com/problemset/problem/([1-9][0-9]*)/([A-Za-z][0-9]?)(?:[/?#].*)?$")
-                .match(url);
+    QRegularExpression matchProblemset(
+        "^https?://(?:www\\.)?codeforces\\.com/problemset/problem/([1-9][0-9]*)/([A-Za-z][0-9]?)(?:[/?#].*)?$");
+    match = matchProblemset.match(url);
     if (match.hasMatch())
     {
         contestId = match.captured(1);
@@ -114,9 +155,9 @@ bool CFTool::parseCfUrl(const QString &url, QString &contestId, QString &problem
         return true;
     }
 
-    match = QRegularExpression(
-                "^https?://(?:www\\.)?codeforces\\.com/group/([^/]+)/contest/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$")
-                .match(url);
+    QRegularExpression matchGroup(
+        "^https?://(?:www\\.)?codeforces\\.com/group/([^/]+)/contest/([1-9][0-9]*)/problem/([A-Za-z][0-9]?)(?:[/?#].*)?$");
+    match = matchGroup.match(url);
     if (match.hasMatch())
     {
         contestId = match.captured(2);
